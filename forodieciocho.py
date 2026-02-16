@@ -1,71 +1,4 @@
-import sys
-import socket
-from flask import Flask, render_template_string, request
-import requests
-from bs4 import BeautifulSoup
 
-app = Flask(__name__)
-
-# Configuración
-HEADERS = {
-    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36"
-}
-
-def find_free_port(start_port=5000):
-    """Encuentra un puerto libre automáticamente."""
-    port = start_port
-    while port < start_port + 10:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-            res = sock.connect_ex(('127.0.0.1', port))
-            if res != 0: # El puerto está libre
-                return port
-            port += 1
-    return start_port
-
-@app.route('/')
-def home():
-    hilos_encontrados = []
-    
-    # Paginación
-    start_page = request.args.get('start', 1, type=int)
-    if start_page < 1: start_page = 1
-    end_page = start_page + 10
-    
-    print(f"Escaneando páginas {start_page} a {end_page}...") # Log en consola
-    
-    # Lógica de escaneo
-    for page in range(start_page, end_page):
-        try:
-            url = f"https://www.forocoches.com/foro/forumdisplay.php?f=2&order=desc&page={page}"
-            response = requests.get(url, headers=HEADERS, timeout=3)
-            
-            if response.status_code == 200:
-                content = response.content.decode('utf-8', errors='ignore')
-                soup = BeautifulSoup(content, 'html.parser')
-                
-                links = soup.find_all('a', id=lambda x: x and x.startswith('thread_title_'))
-                
-                for link in links:
-                    titulo_raw = link.get_text().strip()
-                    # IMPORTANTE: Reemplazamos comillas dobles para no romper el HTML attribute data-title
-                    titulo_safe = titulo_raw.replace('"', "'")
-                    
-                    url_hilo = "https://www.forocoches.com/foro/" + link['href']
-                    
-                    if "+18" in titulo_raw:
-                        hilos_encontrados.append({
-                            'titulo': titulo_safe, 
-                            'url': url_hilo, 
-                            'pagina': page
-                        })
-        except Exception as e:
-            print(f"Error escaneando página {page}: {e}")
-            continue
-
-    html_template = """
-    <!DOCTYPE html>
-    <html lang="es">
-    <head>
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>FC Radar +18</title>
@@ -335,4 +268,5 @@ if __name__ == '__main__':
     # Busca un puerto libre automáticamente para evitar errores "Address already in use"
     port = find_free_port()
     print(f"--- INICIANDO SERVIDOR EN: http://127.0.0.1:{port} ---")
+
     app.run(debug=True, port=port)
